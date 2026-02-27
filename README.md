@@ -17,6 +17,6 @@ Note: This walkthrough was verified by the author twice in 2020. It has not been
 # Related Work
 
 The Day Two companion repository which goes deeper in the JupytyerHub on Openshift prospect iteself can be found at
-https://github.com/jheinnic/jupter-notebooks, which is itself a fork of https://github.com/jupyter-on-openshift/jupyter-notebooks
+https://github.com/jheinnic/jupyter-notebooks, which is itself a fork of https://github.com/jupyter-on-openshift/jupyter-notebooks
 
 The Openshift Client project that hosts the installer and admin client used in this walkthrough is from https://github.com/okd-project/okd/
