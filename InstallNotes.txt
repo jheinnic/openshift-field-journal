@@ -9,7 +9,7 @@ Prerequisites
 5)  A public/private SSH key pair that will be used to grant access to cluster machines
 6)  OKD Client Utilities downloaded from https://github.com/openshift/okd/releases.
     Current release version is "4.5.0-0.okd-2020-08-12-020541".
-7)  Attached install-config.json document, editted slightly to your taste, and several
+7)  Attached install-config.yaml document, editted slightly to your taste, and several
     accompanying YAML asset files.
 8)  About an hour to an hour and a half of stable internet access time.
 
@@ -54,15 +54,15 @@ Prerequisites
 
     Item (6) is also configured to only use a single availability zone right now.  I did this for my proof of concept work to avoid paying for more than one NAT Gateway, but for a production setup, there is value in distributing load.  On other hand, if you do end up wanting to use FSX Lustre Filesystem CSI to map image stores from S3, be aware that you also need one of these for each availability zone in use as well, and these cost even more form month to month than a NAT Gateway does.  We'll get to a section on shared file access further on, but for now do realize that this is where you determine how many availability zones a cluster is split over.  Even with one availability zone, cluster still is allocating three master nodes, so it has fault tolerance in terms of node loss, but with only one availability zone, an AWS incident that makes that zone unavailable will cut you off from entire cluster without falling back to a degraded operation mode.  There is a truth insofar as more fault rolerance does not scale up linearly in cost...
 
-    The .openshift_install_state.json file contains a copy of everything in install-json.json.  It has some other content as well, but nothing that would worth changing.  Whenever I have changed a setting in install-config.json, I have made a parallel change in .openshift_install_state.json.  I'm not sure if that's necessary or not, but it has also not caused any trouble, so recommend continuing with that if you change any of my overrides.
+    The .openshift_install_state.json file contains a copy of everything in install-config.yaml.  It has some other content as well, but nothing that would worth changing.  Whenever I have changed a setting in install-config.yaml, I have made a parallel change in .openshift_install_state.json.  I'm not sure if that's necessary or not, but it has also not caused any trouble, so recommend continuing with that if you change any of my overrides.
 
 Day One
 =======
 	Unpack install-openshift, oc, and kubectl binaries from OKD release downloads.
 
-	Create a directory on your local laptop to work in and add `install-config.json` and `.openshift-install-state.json` files I've provided.  Customize anything further in networking or host provisioning that you care to and save both files.  Paste "Pull Secret" from (4) and publish SSH key from (5) at appropriate locations in both files.  Also set cluster name chosen for (2) as `metadata.name` and public DNS Zone file's domain name for (1) as `baseDomain`.
+	Create a directory on your local laptop to work in and add `install-config.yaml` and `.openshift_install_state.json` files I've provided.  Customize anything further in networking or host provisioning that you care to and save both files.  Paste "Pull Secret" from (4) and publish SSH key from (5) at appropriate locations in both files.  Also set cluster name chosen for (2) as `metadata.name` and public DNS Zone file's domain name for (1) as `baseDomain`.
 
-	Make a copy of both `install-config.json` and `.openshift-install-state.json` for sake of your own reference in some other directory.  Installer uses files in directory where it is run, and deletes files it uses before it stops running for some reason.
+	Make a copy of both `install-config.yaml` and `.openshift_install_state.json` for sake of your own reference in some other directory.  Installer uses files in directory where it is run, and deletes files it uses before it stops running for some reason.
 
 	Set AWS credentials for (3) in your environment as AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
 
