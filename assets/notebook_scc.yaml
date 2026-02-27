@@ -14,7 +14,7 @@ seLinuxContext:
 supplementalGroups:
   type: RunAsAny
 volumes:
-  - configMap`
+  - configMap
   - downwardAPI
   - emptyDir
   - persistentVolumeClaim
@@ -42,7 +42,7 @@ seLinuxContext:
 supplementalGroups:
   type: RunAsAny
 volumes:
-  - configMap`
+  - configMap
   - downwardAPI
   - emptyDir
   - persistentVolumeClaim
