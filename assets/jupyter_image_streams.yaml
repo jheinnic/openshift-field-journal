@@ -1,0 +1,30 @@
+kind: List
+apiVersion: v1
+
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata: 
+  name: s2i-jupyterhub
+spec: 
+  lookupPolicy: 
+    local: true
+
+---
+
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata: 
+  name: s2i-minimal-notebook-py36
+spec: 
+  lookupPolicy: 
+    local: true
+
+---
+
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata: 
+  name: s2i-minimal-notebook-py38
+spec: 
+  lookupPolicy: 
+    local: true

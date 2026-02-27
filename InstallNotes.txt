@@ -1,0 +1,449 @@
+Prerequisites
+=============
+1)  A public DNS zone file managed by AWS's Route53 service and owned by your account
+2)  A subdomain name token not already defined in (1)
+3)  Access Key and Secret Key for an IAM user created for use by cluster, granted 
+4)  An OpenShift "Pull Secret" for access to core images needed during installation.
+    -- Register for a free RedHat Developer Network account at https://developers.redhat.com/
+    -- Download your "Pull Secret" from https://cloud.redhat.com/openshift/install/aws/user-provisioned
+5)  A public/private SSH key pair that will be used to grant access to cluster machines
+6)  OKD Client Utilities downloaded from https://github.com/openshift/okd/releases.
+    Current release version is "4.5.0-0.okd-2020-08-12-020541".
+7)  Attached install-config.json document, editted slightly to your taste, and several
+    accompanying YAML asset files.
+8)  About an hour to an hour and a half of stable internet access time.
+
+    For first two requirements, following example may help:
+* I registered `luminostics.pictures` domain name for use with AWS Route 53.  This created a zone file suitable for (1).  
+	* Alternately, I could have created a pair of SOA/NS records for subdomain of a domain registered outside of Route 53, and created a public zone file in AWS Route 53 to receive that authority.
+* I selected 'lab' as subdomain token for (2), which effectively becomes a name for my new cluster.  The fully qualified name will be `lab.luminostics.pictures`
+	* If I had delegated a subdomain of `luminostics.pictures` from outside Route 53 to a public zone file hosted by AWS Route 53, my fully qualified name would necessarily have one more token, `lab.delegation.luminostics.pictures`.
+* The installer will create a private zone file rooted at cluster's fully qualfiied name and use that fully qualified name to set up a delegation relation.
+	* Any names that are needed externally will get placed in public zone file where `lab` gets defined.  This includes cluster's main ingress router hostname and its wildcard for all various named services cluster will eventually be configured to expose, `apps.lab.luminostics.pictures` and `*.apps.lab.luminostics.pictures`.
+	* Names that are only needed to resolve within cluster itself will get into private zone file rooted at cluster's fully qualified public name.  This includes an SRV record listing cluster's master `etcd` nodes and an A record for each such listed node.
+
+    Item (7) contains my recomended overrides.  The most significant thing it does is establish initial provisioned node count and override installer's default decisions about subnet ranges to use.  The latter is worth explaining a little.  There are three network address ranges that OKD uses.  The overrides to their default ranges have been selected such that each function uses a subrange taken from a different private IP subnet than either of other two use cases.  This makes it easier identify role an IP plays without having to do any subnet math.  The defaults also use 0-padded subnets, like 10.0.0.0/16, that are too likely to conflict with a use outside cluster.  The following is both an explanation of what I've overriden here and also a condensed overview of how Kubernetes networking stack works:
+* `Machine Network` defines address space available for physical nodes.  The installer will subdivide this further to account for number of private/public subnets it needs to place two subnets in each availability zone used.
+	* I use 192.168.200.0/21 for this role.
+* `Cluster Network` is a virtual address space used to provide unique addresses to each running container.  It is defined by two subnet sizes.  The range with more host bits defines scope of all possible cluster IPs.  The second range splits host bits into an upper range that is used to address pod a container is running within, and a lower range that is index of that container within its pod.
+	* I use 10.144.0.0/12 and /23 for this purpose.  The default is 10.128.0.0/14 and /23.
+	* Both my oveeride and default use /23 to split upper and lower host bits.  /23 leaves 9 lower host bits, which means both my settings and default will support a maximum of 512 containers per pod.  Most pods have at most 3 or 4 containers, so this limit is decent.
+	* The difference between /23 and /14 is also 9, which means default settings can only address 512 unique pods across cluster.  That seems a little restrictive.  A /12 subnet has two additional high-order host bits, enabling cluster to support up to 2048 distinct pods.
+	* Other examples to help see math:
+		* 10.144.0.0/16 and /23 would support 128 pods with at most 512 containers per pod.
+		* 10.144.0.0/14 and /25 would support 2048 pods with at most 128 containers per pod.
+		* 10.144.0.0/12 and /25 would support 8192 pods with at most 128 containers per pod.
+		* 10.128.0.0/10 and /22 would support 4098 pods with at most 1024 containers per pod.
+		* 10.144.0.0/13 and /24 would support 2048 pods with at most 256 containers per pod.
+* `Service Network` is a second software virtual network, used to create an indirection between binding address for an exposed service and location of whatever cluster network container addresses are currently providing that service.
+	* I use 172.16.80.0/20 for this role.
+	* If I implement an Image Acquisition service in some namespace, Kubernetes may:
+		* Expose that service inside cluster on 172.16.80.5, port 80.
+		* Run a pod where that service is provided as 10.144.10.1:9000.  
+		* Kubernetes "Service Router" is an OSI Layer 4 proxy tracking moment-by-moment mapping from 172.16.80.5:80 to 10.144.10.1:9000.
+		* If current pod shuts down and restarts as 10.144.12.1:9000, "Service Router" map same Service Network address, 172.16.80.5:80, to its new Cluster Network address, 10.144.12.1:9000.
+	* "Service Router" is supported by a service discovery facilitiy in cluster's internal DNS as well.
+		* Each service name is unique within its namespace, therefore service discovery registry in DNS defines fully qualified names based on a pair of (namespace name, service name).
+		* If service in above example is named "image-upload" and is hosted in a namespace called "lure", then DNS service discovery will resolve "image-upload.lure.internal.svc" as 172.16.80.5
+	* Service objects are augmented with a Route object to expose services outside cluster.  Routes support exposure of HTTP-based services
+		* A wildcard DNS record routes all names under *.apps.lab.luminostics.pictures" to "Ingress Router"'s public internet address.
+		* "Ingress Router" is an OSI Layer 7 proxy that interprets Host header, uses its value to find appropriate Service Layer address, and then delegates to cluster's "Service Router" 
+		* When a Route binds a Service, its includes a name that is unique within cluster.  When that name is prepended to `.apps.lab.luminostics.pictures`, that gives "Ingress Router" correct key to lookup Routes' bound Service and get its intended Service Network address.
+
+    Item (6) also contains profiles for EC2 instance allocation.  The installer runs out of ability to provision containers it needs to bootstrap cluster unless it has three machines with 16MB of memory each.  The OKD default recommendations select m4.xlarge hosts, which have 4 CPUs and 16 MB of memory each.  I have tried running installer using r5.large hosts that offer 2CPU and 16MB, but without much success.  The amount of resources the master nodes need grows as the clsuter acquires more pods and more work to do with them.  The Node hardware class used by the root nodes cannot be changed after the cluster is online.  OKD recommendations call for allocating hardware today based on your expected use of the cluster a year down the road.  You can grow into what you overprovision and be in a much better place than if you grow out of what you have underprovisioned.
+
+    Item (6) is also configured to only use a single availability zone right now.  I did this for my proof of concept work to avoid paying for more than one NAT Gateway, but for a production setup, there is value in distributing load.  On other hand, if you do end up wanting to use FSX Lustre Filesystem CSI to map image stores from S3, be aware that you also need one of these for each availability zone in use as well, and these cost even more form month to month than a NAT Gateway does.  We'll get to a section on shared file access further on, but for now do realize that this is where you determine how many availability zones a cluster is split over.  Even with one availability zone, cluster still is allocating three master nodes, so it has fault tolerance in terms of node loss, but with only one availability zone, an AWS incident that makes that zone unavailable will cut you off from entire cluster without falling back to a degraded operation mode.  There is a truth insofar as more fault rolerance does not scale up linearly in cost...
+
+    The .openshift_install_state.json file contains a copy of everything in install-json.json.  It has some other content as well, but nothing that would worth changing.  Whenever I have changed a setting in install-config.json, I have made a parallel change in .openshift_install_state.json.  I'm not sure if that's necessary or not, but it has also not caused any trouble, so recommend continuing with that if you change any of my overrides.
+
+Day One
+=======
+	Unpack install-openshift, oc, and kubectl binaries from OKD release downloads.
+
+	Create a directory on your local laptop to work in and add `install-config.json` and `.openshift-install-state.json` files I've provided.  Customize anything further in networking or host provisioning that you care to and save both files.  Paste "Pull Secret" from (4) and publish SSH key from (5) at appropriate locations in both files.  Also set cluster name chosen for (2) as `metadata.name` and public DNS Zone file's domain name for (1) as `baseDomain`.
+
+	Make a copy of both `install-config.json` and `.openshift-install-state.json` for sake of your own reference in some other directory.  Installer uses files in directory where it is run, and deletes files it uses before it stops running for some reason.
+
+	Set AWS credentials for (3) in your environment as AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+
+	Run `./openshift-install create cluster`.
+
+	Go have several round of coffee.  This will take roughly an hour or so to complete.
+
+	After program finishes, there will be two files in an `auth` subdirectory.  Set an environment variable named KUBECONFIG to location of this file to enable CLI access.  To login to cluster until you have given it an identity provider, use username `kubeadmin` and password from `auth/kubeadmin-password`.  `oc` is command line access tool, although there are some rare cases that use `kubectl` instead.  The web console will be running at `https://console-openshift-console.apps.lab.luminostics.pictures`, assuing that public DNS zone file you used is authoritative for `luminostics.pictures` and name you gave cluster was `lab`.
+
+
+Day Two
+=======
+	Now that cluster is provisioned, here's what you will likely want to do first to begin configuring it for Luminostics use cases.  See subsequent "Day Two Details" section for more information about each step.
+
+* Configure an identity provider
+* Configure Access Control with Groups, Roles, and RoleBindings
+* Acquire Lets Encrypt SSL Cert
+* Add support for a Python 3.6 builder image
+* Create Namespace for Jupyter and Jupyterhub
+* Create Deploy Secret for private repository access
+* Create Webhook Secret for use with on-commit build trigger
+* Register Docker Strategy Build for `Jupyter` and `JupyterHub` S2I Builder Images
+* Apply Jupyter Hub bootstrapping Templates
+* Execute JupyterHub Workspace Template
+* Create OAuth Client for JupyterHub
+* Create SecurityContextConstraint (SCC) artifacts to support Notebook requirements
+* Configure admin list, user white list, and Jupyterhub custom config in Template-created ConfigMap
+
+	At end of Day Two procedures, users will be able to login to a well-defined Jupyterhub URL and get routed to their own perosnal Jupyter instance.  On first login, cluster will allocate an EC2 persistent volume of a configured size and mount it in container for that user's notebook server wherever it gets launched.  On subseqeuent logins cluster will reuse same user-associated volume, maintaining continuity of that user's stored content from run to run. 
+	At this point, we have only created a stub for that will be customized to package reusable runtime dependencies for LuRE and an empty stub for notebook collections it supports.   There is work to do to integrate LuRE dependencies into Docker build for its S2I Builder image.  There is also a simpler but still important task of populating at least one collection of notebooks to package with LuRE environment S2I Builder.  See "Day Three+ -- LuRE" for a discussion of requirements.
+	By Day Two we have an ability to consume effectively immutable notebooks from a versioned release train.  Users can save modified copies of notebooks in their private workspaces, but they cannot change authoritative copies embedded in server image that resets to its initial state each time it is launched.  That leaves an open question as to how a notebook maintainer will go about making and comittiing controlled changes to these immutable sources.  See "Day Three+ -- Versioning" for a discussion of requirements.
+	Luminostics environment includes some templated notebooks that are meant to be "compiled" with a given data set to yield unique notebook that specifically supports data set it was given.  The templates are immutable and versioned, but there are as many dervied notebooks as there are data sets in system.  The data-set specific variants do not form a linear chain of releases.  They are more similar to a collection of branches.  There are facilities in Kubernetes that can be used to create distinct images for each compilation of a template this way, but each such tag places some additional strain on cluster's master `etcd` store and so some facility is probably needed to keep online images only for some "current" set of expanded templates.  There is likely also a concept of publishing results from these generated templates, that is not well defined at present, but should be.  See "Day Three+ -- Generators" for a discussion of requirements.
+	Cluster does not yet have a solution for shared storage implemented after completing "Day Two" activities.  It also lacks an Acquisition support service.  There are at least three viable strategies to approach first issue, with cost and maintenance effort being most significant tradeoffs involved.  See "Day Three+ -- Acquisition" for a discussion of requirements.
+
+Day Two -- Details
+==================
+
+Configure an identity provider  
+------------------------------
+	The simplest way to get something bootstrapped here is to provide cluster with a .htpasswd file of known user and configure that as its first identity provider.  For a more consolidated corporate experience, it is also possible to use GSuite platform's LDAP service or Google's OIDC provider.  OKD leaves it up to individual identity providers to provide their own facility for things like password resets.  For an htpasswd provider, that means someone has to run a command to produce a new entry in .htpasswd file and then upload another copy to OKD's console.  This is not most conveient work flow, but it's easiest way to begin.
+
+	Set an initial password for each known user and accumulate those entries in a single .htpasswd file.  On each execution of following command, caller will be promped for password value to set:
+
+```
+	htpasswd -n -B -C 18 -v jheinnic >> .htpasswd
+```
+
+	Open OKD console and login as `kubeadmin` using password from installer's `auth` output directory.
+
+	Navigate to Administration->Cluster Settings with left-hand nav
+
+	Activate "Global Configuration" tab and select its entry for "OAuth"
+
+	Near bottom of page, find a section for "Identity Providers".  Click its Selector list and chose "htpasswd"
+
+	With form that loads, upload a populated .htpasswd file and select a name that will appear in button that selects authentication with this file as a provider on cluster's Entry Page.
+  
+
+Add support for a Python 3.6 builder image
+------------------------------------------
+	The installer prepopulates S2I builders for Python 2.7 and Python 3.6.  A S2I builder for Python 3.8 is available, but not part of default installation.  It is readily possible to add by hand.
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Run `oc tag registry.redhat.io/rhscl/python-38-rhel7:latest python:3.8 -n openshift`
+
+
+Configure Access Control with Groups, Roles, and RoleBindings
+-------------------------------------------------------------
+	The most basic access control model creates a Group for designating accounts with administrative privileges, gives it a cluster-wide binding to the builtin `cluster:admin` ClusterRole, and places every user intended to have administrative access into that particular group.  All other users only have an account for the sake of authenticating with GitHub and so need not be assigned to any Groups or participate in any RoleBindings.
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Run `oc create -f assets/user_groups.yaml`
+	Run `oc patch ClusterRoleBinding cluster-admins --type='json' -p='[{"op": "add", "path": "/subjects/-", "value": {"kind": "Group", "apiGroup": "rbac.authorization.k8s.io", "name": "cluster-admins"}}]'`
+	Run `oc patch ClusterRoleBinding cluster-readers --type='json' -p='[{"op": "add", "path": "/subjects/-", "value": {"kind": "Group", "apiGroup": "rbac.authorization.k8s.io", "name": "cluster-readers"}}]'`
+
+
+Acquire Lets Encrypt SSL Cert
+-----------------------------
+	Procedure transcribed from https://www.openshift.com/blog/requesting-and-installing-lets-encrypt-certificates-for-openshift-4
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Run `git clone https://github.com/acmesh-official/acme.sh.git` and then `cd ./acme.sh`.
+
+	Edit `./dnsapi/dns_aws.sh`.  Modify these lines using AWS credentials from prerequisite (3):
+```
+		AWS_ACCESS_KEY_ID="sdfsdfsdfljlbjkljlkjsdfoiwje"
+		AWS_SECRET_ACCESS_KEY="xxxxxxx"
+```
+
+	Run the acme.sh generator to produce desired SSL certitifcate:
+```
+		export LE_API=$(oc whoami --show-server | cut -f 2 -d ':' | cut -f 3 -d '/' | sed 's/-api././')
+		export LE_WILDCARD=$(oc get ingresscontroller default -n openshift-ingress-operator -o jsonpath='{.status.domain}')
+		./acme.sh --issue -d ${LE_API} -d *.${LE_WILDCARD} --dns dns_aws
+```
+
+	Run the acme.sh installer to place a copy of the certificates under your downloads directory, and apply them to OKD from there:
+```
+		export CERTDIR=../downloads/certificates
+		mkdir -p ${CERTDIR}
+		./acme.sh --install-cert -d ${LE_API} -d *.${LE_WILDCARD} --cert-file ${CERTDIR}/cert.pem --key-file ${CERTDIR}/key.pem --fullchain-file ${CERTDIR}/fullchain.pem --ca-file ${CERTDIR}/ca.cer
+		oc create secret tls router-certs --cert=${CERTDIR}/fullchain.pem --key=${CERTDIR}/key.pem -n openshift-ingress
+		oc patch ingresscontroller default -n openshift-ingress-operator --type=merge --patch='{"spec": { "defaultCertificate": { "name": "router-certs" }}}'
+```
+
+	Dispose of the https://github.com/acmesh-official/acme.sh.git clone.  Be certain to dispose of credentials copied into `./dnsapi/dns_aws.sh`!
+
+
+Create Namespace for lab scenarios
+----------------------------------
+	Roles that enable users and service accounts to perform specific operations on specific artifact types can be bound to principals at one of two scopes--cluster wide or namespace-specific.  Notebook images adapted from jupyterhub-openshift project work need to run with a fixed UID, which requires a privilege grant in Openshift.
+One of built-in SecurityContextConfiguration artifacts available grants just this specific privilege, "anyuid"
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Run `oc new-project jupyterhub`
+
+
+Create Deploy Secret for private repository access
+--------------------------------------------------
+	Enable use of credentials when pulling JupyterHub S2I Image Source so it may be hosted in a private repository.  First, configure a public/private key pair for use as a `Deploy Key` with GitLab an grant it access to read any repositories needed here.  Let `ssh_deploy.key` be name of a file with private key inside.  Then, register a named secret containing private key in `jupyterhub`'s namespace and annotate it with a Git repo reference pattern that will match repositores where this
+credential should be used.
+
+	Store the private key component of a deploy key registered with GitLab for access to required private repositories as `downloads/deploy_keyfile`
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Run `oc create secret generic gitlab-deploy-key --from-file=ssh-privatekey=downloads/deploy_keyfile --type=kubernetes.io/ssh-auth -n jupyterhub`
+	Run `oc annotate secret gitlab-deploy-key 'build.openshift.io/source-secret-match-uri-1=git://gitlab.com/*.git' -n jupyterhub`
+
+
+Create Webhook Secret for use with on-commit build trigger
+----------------------------------------------------------
+	When receiving a webhook call, OKD will attempt to find a match to chosen secret string in order to validate that request really is a genuine notification from host repository.  The build_config asset contained here expects a webhook secret asset named `jupyterhub-quickstart-webhook` and OKD requires that secret to contain a key named `WebHookSecretKey`.
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Run `oc create secret generic jupyterhub-quickstart-webhook --from-literal=WebHookSecretKey=`openssl rand --base64 24`
+
+
+Register Docker Strategy Build for `Jupyter` and `JupyterHub` S2I Builder Images
+--------------------------------------------------------------------------------
+	Bundled assets inclue BuildConfig and ImageStream resources that watch my fork of the jupyerhub-quickstart and jupyter-notebooks projects for changes and rebuild a `latest` image from each.  ImageStream tagging is similar to Docker image tagging, but it oriented more towards release management.  The templates applied in the next step are looking for `s2i-jupyterhub:4.0.0` and `s2i-minimal-notebook:2.5.1-jch`.  These build resources will populate `s2i-jupyterhub:latest` and `s2i-minimal-notebook:2.5.1-jch`.  Taking the latest build to a release therefore requires runing `oc tag s2i-jupyterhub:latest s2i-jupyterhub:4.0.0` or `oc tag -n jupyterhub s2i-minimal-notebook-py3[68]:latest s2i-minimal-notebook-py3[68]:2.5.1-jch`
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Run `oc create -f assets/jupyter_image_streams.yaml`
+	Run `oc create -f assets/jupyter_build_configs.yaml`
+
+	Open web console and navigate to Builds->Builds on the left-hand nav, set the Project selector along the top bar to Project: Jupyterhub, and wach for the Build tasks that are created when these first are installed to complete.
+
+	If any builds don't launch, you can manually activate them from Build->BuildConfigs, using the right-click context menus.
+
+	Once any build is complete, retag its `latest` tag as the one matching a template dependency for the next step.  The three build promotions are:
+	* `oc tag -n jupyterhub s2i-jupyterhub:latest s2i-jupyterhub:4.0.0`
+	* `oc tag -n jupyterhub s2i-minimal-notebook-py36:latest s2i-minimal-notebook-py36:2.5.1-jch`
+	* `oc tag -n jupyterhub s2i-minimal-notebook-py38:latest s2i-minimal-notebook-py38:2.5.1-jch`
+
+
+Apply Jupyter Hub bootstrapping Templates
+-----------------------------------------
+	The JupyterHub for OpenShift supporting git project includes four templatesor common re-use scenarios.  I have made maintenance improvements to thse and exported them through my GitHub account.
+
+	Download https://raw.githubusercontent.com/jheinnic/jupyterhub-quickstart/jheinnic/feature-libraries/templates/jupyterhub-builder.json
+	Download https://raw.githubusercontent.com/jheinnic/jupyterhub-quickstart/jheinnic/feature-libraries/templates/jupyterhub-deployer.json
+	Download https://raw.githubusercontent.com/jheinnic/jupyterhub-quickstart/jheinnic/feature-libraries/templates/jupyterhub-quickstart.json
+	Download https://raw.githubusercontent.com/jheinnic/jupyterhub-quickstart/jheinnic/feature-libraries/templates/jupyterhub-workspace.json
+
+	For each <file> just downloaded, run `oc create -n openshift -f <file>`
+
+
+Execute JupyterHub Workspace Template
+-------------------------------------
+	Access the OKD web console at https://console-openshift-console.apps.lab.luminostics.pictures using an admin account
+
+	Navigate to Home->Projects using left-hand nav
+
+	Select `jupyterhub` from main panel's project list
+
+	Activate `Workloads` tab and click its 'add other content' link
+
+	Click button for "Catalog Items" on "Add..." page that loads next
+
+	Type "Jupyter" into "Filter by Keyword" text widget
+
+	Ensure "Template" is activated among left-hand checkbox controls
+
+	Click "JupyterHub Workspace" template entry
+
+	Click "Instantiate Template"
+
+	There are several configurable options here, but the defaults should all be fine for now.   
+
+
+Create OAuth Client for JupyterHub
+----------------------------------
+	Templates are not authorized to create OAuth Clients, since that could easily be abused if it were possible, so the template just expand includes some artifacts that depend on an OAuth Client that does not yet exist.  Here we'll use administrator privilege to fill in that missing aritfact.
+
+	Access the OKD web console at https://console-openshift-console.apps.lab.luminostics.pictures using an admin account
+
+	Navigate to Home->Explore with left-hand nav.
+
+	Use top right search filter to narrow selections to OAuthClient and click into it
+
+	Activate Instances tab
+
+	Click CreateOAuthClient button
+
+	Enter following resource spec, expanding ${APPLICATION_NAME} and ${OAUTH_CLIENT_SECRET} using same values as supplied to or generated by JupyterHub Workspace template:
+
+```
+		kind: OAuthClient
+		apiVersion: oauth.openshift.io/v1
+		metadata:
+		  name: ${APPLICATION_NAME}-jupyterhub-users
+		  labels:
+		    app: ${APPLICATION_NAME}
+		  annotations:
+		    serviceaccounts.openshift.io/oauth-redirectreference.first: >-
+		      {"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"${APPLICATION_NAME}"}}
+		    serviceaccounts.openshift.io/oauth-redirecturi.first: hub/oauth_callback
+		    serviceaccounts.openshift.io/oauth-want-challenges: 'false'
+		secret: ${OAUTH_CLIENT_SECRET}
+		grantMethod: auto
+```
+
+
+Configure SecurityContextConstraint (SCC) artifacts to support Notebook requirements
+------------------------------------------------------------------------------------
+	Notebook images projects expect to be invoked with a fixed fsGID value.  This enables the containers to make use of persistent volume attachments without requiring access to the root user account by establshing Set-GID permissions on attached volumes, much like has been traditionally done with JupyterHub scratch spaces in the Callisto and Biosphere environments.  This requires a priviledge grant as Openshift does not trust containers with that ability by deault for security purposes.  Customizing system's built-in Security Constraint Context (SCC) objects is not recommended, so we create two custom configurations that capture two tiers of notebook privilige.  
+	`Standard-notebook-privilege` covers this requirement, and OKD will attempt to use that security context first before falling back to the `elevated-notebook-privilege` because `standard-notebook-privilege` has a greater value assigned to its `priority` field.  The `elevated-notebook-privilege` context is available if there is ever a scenario which does require a notebook container to run as root user.
+* `basic-notebook` grants permission to run as a specific non-root UID, and uses fs GID=0
+* `elevated-notebook` grants permission to run as any specific UID, including root, and uses fs GID=0
+	As these SCC artifacts are created, they are enabled for use by the `${APPLICATION_NAME}-hub` service account, where ${APPLICATION_NAME} comes from the JupyterHub Workspace Template parameter of matching name.
+
+	Login to command line with `oc login --user kubeadmin` and password from installer's auth output directory.
+
+	Set $APPLICATION_NAME to match the value used when expanding the JupyterHub Workspace template
+
+	Run `oc create -f assets/notebook_scc.yaml -n default`
+	Run `oc adm policy add-scc-to-user -n jupyterhub -z ${APPLICATION_NAME}-hub standard-notebook-privilege`
+	Run `oc adm policy add-scc-to-user -n jupyterhub -z ${APPLICATION_NAME}-hub elevated-notebook-privilege`
+
+
+Configure admin list, user white list, and Jupyterhub custom config in Template-created ConfigMap
+-------------------------------------------------------------------------------------------------
+	After expanding the `JupyterHub Workspace` template, a `ConfigMap` in namespace `jupyterhub` contains the content of two files that provide the lists of all users approved to login and create notebooks and of all users approved to login with admin access.  In order for anyone to be able to use Jupyterhub, these files need to be supplied with a list of the usernames from the cluster's .htpasswd file.
+
+	Access the OKD web console at https://console-openshift-console.apps.lab.luminostics.pictures using an admin account
+
+	Navigate to Workloads->Config Maps with left-hand nav.
+
+	Use the `Project` selector near the top of the content frame to focus on the `jupyterhub` namespace if that context is not already set.
+
+	Find an entry that appends `-cfg` to the value supplied for $APPLICATION_NAME when expanding the JupyterHub Workspace Template and click it.
+
+	Activate the `YAML` tab to enter edit mode and scroll to the bottom of the page.  This is a YAML document, so obey the formatting rules for a multi-line value as you fill in content for `data.admin_users.txt` and `data.user_whitelist.txt`.  Each user listed in either file must have an entry in the cluster's .htpasswd file.  Any addditional Jupyterhub configuration can be provided through the jupyterhub_config.py file, which will get added inline to the end of Jupyter Hub's image-based content for this file.
+
+	An example, which puts some users in both list files and configures the on-launch selector to present options for different initial notebook deployment images:
+```
+		data:
+		  jupyterhub_config.py: |-
+		    c.KubeSpawner.profile_list = [
+		      {
+		        'display_name': 'Minimal Python 3.6 Notebook',
+		        'kubespawner_override': {
+		            'image': 's2i-minimal-notebook-py36:2.5.1-rc1',
+		        }
+		      },
+		      {
+		        'display_name': 'Minimal Python 3.6 High Resource Notebook',
+		        'kubespawner_override': {
+		            'image': 's2i-minimal-notebook-py36:2.5.1-rc1',
+		            'cpu_guarantee': 0.5,
+		            'cpu_limit': 1.25,
+		            'mem_guarantee': 838860800,
+		            'mem_limit': 1717986918
+		        }
+		      },
+		      {
+		        'display_name': 'Minimal Python 3.8 Notebook',
+		        'default': True,
+		        'kubespawner_override': {
+		            'image': 's2i-minimal-notebook-py38:2.5.1-rc1',
+		            'supplemental_gids': [0, 100, 1000, 1001, 1002]
+		        }
+		      },
+		      {
+		        'display_name': 'Minimal Python 3.8 High Resource Notebook',
+		        'kubespawner_override': {
+		            'image': 's2i-minimal-notebook-py38:2.5.1-rc1',
+		            'cpu_guarantee': 0.5,
+		            'cpu_limit': 1.25,
+		            'mem_guarantee': 838860800,
+		            'mem_limit': 1717986918
+		        }
+		      },
+		            {
+		        'display_name': 'Conda Python 3.8 Notebook',
+		        'default': True,
+		        'kubespawner_override': {
+		            'image': 's2i-conda-notebook-py38:2.5.1-rc1',
+		            'supplemental_gids': [0, 100, 1000, 1001, 1002]
+		        }
+		      },
+		      {
+		        'display_name': 'Conda Python 3.8 High Resource Notebook',
+		        'kubespawner_override': {
+		            'image': 's2i-conda-notebook-py38:2.5.1-rc1',
+		            'cpu_guarantee': 0.5,
+		            'cpu_limit': 1.25,
+		            'mem_guarantee': 838860800,
+		            'mem_limit': 1717986918
+		        }
+		      }
+		    ]
+		  jupyterhub_config.sh: ''
+		  admin_users.txt: |-
+		    jheinnic
+		    dan
+		    brian
+		    steven
+		  user_whitelist.txt: |-
+		    raja
+		    bala
+		    lakshmi
+		    andrew
+		    alex
+		    emily
+		    rashi
+		    jeremy
+```
+
+Configure Machine Autoscaler
+----------------------------
+    There are two artifacts to schedule here.  One sets global policies for the cluster about how long the autoscaler should wait before making scale-related decisions after certain kind of events, such as when nodes have just been manually added, or when they have unexpectedly failed to function, and the cluster wide maximums on resource provisioning it must obey.  The other artifact is specific to a specific class of hardware configuration, as used in a specific avaialability zone your cluster operates in.  These define allocation maximums specific to that hardware class, but not the hardware class itself.  A third related artifact, a `MachineSet`, was created during
+cluser installation and is reused by reference when setting machine class related autoscaling policies.
+
+    With current demo cluster only installed in one avaialbility zone, there is only one example of a MachineDeployment Special in siad repository, but it is relatively
+easy to reuse as a template for future expansions when necessary.  The two resource examples in assets used here did not come pre-installed.
+
+* Login to the cluster via the CLI with an admin account
+
+* Copy `assets/cluster_autoscaling.yaml` to `downloads\cluster_autoscaling.yaml` and edit the copy to reflect the name you asigned to your cluster.  If in doubt, `oc get -A MachineSet` will allow you to see the MachineSet artifact linked by name here.
+
+* Run `oc create -f downloads/cluster_autoscaling.yaml`
+
+
+Day Three+ -- LuRE
+==================
+	IF LuRE needs to be built with Anaconda, then 
+
+Day Three+ -- Versioning
+========================
+
+Day Three+ -- Generators
+========================
+
+Day Three+ -- Acquisition
+=========================
+	Using persistent volumes without also allowing a pod to run as user root requires some intervention.  Without any intervention settings-wise, all persistent volumes are mounted into a container as owned by root and without group or other permission bits.  Setting an explicit `fsGroup` on pod's PodSecurityContext section engages some behavior that can help.  Here is a snippet from a pod spec where this has been done:
+
+```
+  spec:
+    # Allow non-root user to access PersistentVolume
+    securityContext:
+      fsGroup: 1000
+    containers:
+      ...
+```
+
+	The fsGroup field specifies that given special supplemental group with ID 1000 is associated with all Containers in Pod.  Kubernetes will change ownership of volume as follows:
+	* Owning GID will be set equal to fsGroup GID.
+	* Setgid bit is set.  New volume files are also owned fsGroup GID.
+	* Other permission bits are OR’d with rw-rw—-
+
+	For more information refer to kubernetes docs
+
+	If a Persistent Volume claim used this way is intended to be shared, then letting K8s assign each pod a unique fsGroup ID from its default range of "random" GID values would complicate sharing.  It is not necessary to let pods run as root, but they may need to be able to run with a specific uniform fsGroupId to share files through ReadWriteMany PersistentVolumeClaims.
+
+	In case of one writer and multiple readers, it may be possible to achieve sharing by ensuring that single owner explicitly enable world read/write permissions, but this does have but this is a different kind of security vulnerability.  It also may very well not work--K8s fsGroup functionality does not necessarily make single writer owner of its files--it may therefore be unable to enable world read/write access.

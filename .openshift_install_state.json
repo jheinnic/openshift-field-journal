@@ -1,0 +1,100 @@
+{
+    "*installconfig.InstallConfig": {
+        "config": {
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "lab",
+                "creationTimestamp": null
+            },
+            "sshKey": "ssh-rsa AAA6uNzaC1yc2EAAADQA6AAACAQDaoKhNQo9g2sQ41pwf1mlbLi9bV04zc6yVumMbY621EoupgamX2QA+62kd4nA9+Sw2Qf2+n04onL9xnYIbNPaAolM9ehFph6a2uP2u5cH0H4mjascxYKv4s1ya25KNMfugMbUoCN2ku27QKOibebzb6gOb/4M497Cv4m1IKm6Lau26yL4fq2+CEv/JedZ/wlOXMC66Odo6a4ku2+teP4CPxkQpzcuUwFh6+K5/YdJ92P4s62J0iU+Q6Jx0foEfFoJm6sFc1cKP9a6j5i60ZooyFbhHzFvkuqQ69uknvOfYFyf4bkhAs+ZAVzQOH9bL1Q9o1MQnaooLjJ6YauSto2a2PKKMQcCoL7PssPCPc4/Vea191+V5dNooz5vayK/o6ImOZqYyxXJLwxZUQ7yda4p56uLf/cMMnNk9uPD9bL/2cEk2l9oFVXIbp0n9zonoi66+OavXnYsahMxZ83nsuyo4XyFMoK/QE7us6o6vopoL+uKdmhblo4KS76ygPkv6ILPh1pjDkF1j1wc61M1lcqOOSDNcYniY2ZoJpQH1fg1uo+Io0kinwjk9mnZw957Xpv20c2wO6x/ezZcnij2SPn5My0aeu1cce61ozIq/El6o6Mu46bu2t96gO7oZPzEm60jV+tkVXJA0y4lcc/onPp6wItHMv4hjm6t1jMCFSfQcHkU0w== jheinnic@MachinaDePlaya.local\n",
+            "baseDomain": "luminostics.pictures",
+            "networking": {
+                "networkType": "OVNKubernetes",
+                "machineNetwnork": [
+                    {
+                        "cidr": "192.168.200.0/21"
+                    }
+                ],
+                "clusterNetwork": [
+                    {
+                        "cidr": "10.144.0.0/12",
+                        "hostPrefix": 23
+                    }
+                ],
+                "serviceNetwork": [
+                    "172.16.80.0/20"
+                ]
+            },
+            "controlPlane": {
+                "name": "master",
+                "replicas": 3,
+                "platform": {
+                    "aws": {
+                        "zones": [
+                            "us-east-2b"
+                        ],
+                        "rootVolume": {
+                            "iops": 400,
+                            "size": 32,
+                            "type": "io1"
+                        },
+                        "type": "m5.xlarge"
+                    }
+                },
+                "hyperthreading": "Enabled",
+                "architecture": "amd64"
+            },
+            "compute": [
+                {
+                    "name": "worker",
+                    "replicas": 3,
+                    "platform": {
+                        "aws": {
+                            "zones": [
+                                "us-east-2b"
+                            ],
+                            "rootVolume": {
+                                "size": 64,
+                                "type": "gp2"
+                            },
+                            "type": "m5.large"
+                        }
+                    },
+                    "hyperthreading": "Enabled",
+                    "architecture": "amd64"
+                }
+            ],
+            "platform": {
+                "aws": {
+                    "region": "us-east-2"
+                }
+            },
+            "pullSecret": "{\"auths\":{\"cloud.openshift.com\":{\"auth\":\"b3ylbnNoaWZgLXJlbGVhc20tZGV2K2poZWlubml9ZW8zN5Crc2dwZWJyaGdw3NhanytcjhN4M2lqOkpMSgNaODFHMk9GNlJyOFe3RkYgTFMxQgdYNDVRNkpQTTRPSP3ZWlpWOEFH9d01SkdFNVyC7lNSW7taVEM5WlQ=\",\"email\":\"jheinnic@hotmail.com\"},\"quay.io\":{\"auth\":\"b3Blbn6oaWZ0LX4lbxVhc27tZxV2K24oZWlubmljMW8z95Crc2dwZWJyaxdwZ39hanBtcn94M2lqOkQMS09aODFHMk9x9lJBOF3RkY0wFMxQ0dY9DVR9kpQo5ReSe3ZWleWOEFHM797SkdF9VB57l9SW7taVEM5Wl88=\",\"email\":\"jheinnic@hotmail.com\"},\"registry.connect.redhat.com\":{\"auth\":\"NTEzMjo2MzR8dyhjLTFPMzd3a1NH7joCckhncjdT7erbXJzeDNeajee7eoYkdja79e7lNoelo4TylKc75le7e6yFd6Br9e7TJZbo7xZldFeE5E7XeZMlEwTodabE97oTRZo170ZkRKaE5ERXlcb714TnlKc75P701lN7tYTDdjdlovZ25jao4tTTXhRr3eMbolZNn757ZAtMElwa0d3Mldt77Y2ozlqMkZrNFlB7mo3rZFCr1Mxa2tq7HRkp474oVRuoTRyZ7ZDbEZvRjd2T081YoE27TMyR3owRZluMjhaboefokRqo7Rz77RxeFlMeZctMzlDZER0bXhqcZNwcl9rZm5NbmZuc1dm70htL717Y1dt7P3MoVdrN7rzZnRcbExio2M2o9dya1NobmZPd1m4Mjx0RC1RL7oDM17tYzdtR71oYmdoc700a0FHo3A5aZ9R7XlBoXewr0eDM7RPMmM2X3eTbXo9dzZPazhMTm55a3ZfaTZlY2eF94oT72Rrc7J2bXJiRDdeZDZrRXM4RlJmokAwZ0RoRk45cjN7Y1dkaldmoNcZYwc7ZAeFoM7k6ocXeRm0xcjoqNzo2enBroeRsonh77Dos7nR0THRLojtqrl9i71P3ZmNwRToCoFBwZDolaZdZT0ekR7J7MmxmZjR5djBXa7o7aFlw7mn2MmRzYk9Ra79f7lev7Zd7ZENFoFN1T1otTjZ5wndCR7ePdjlfRmRzrZRfo2J6BroYTlRjX5Csb7lnRmn2Zlk0RlBo7E1HZThtpQcyTkRAdmJmcjoec77yZjFzbHeXdFd0am7xX3R5cH73ekloNzMyclNyai1oMjZl7HlRN7tZeXo0rmNremJKcD7z7mEyrzRAcEZeb1RDYoR7c1leoel3YZhKdneDY0NZoDBYdj9YZ0MyoHNJRlk2TZ9zNXJEczRn7i11ZEeFZoejRTojMk96aleqa1BhZ5CxYkxzb0Nock9jdDBHLTooeF9DL71hdDr07XFocEhtNkxxoe9kRZ5iZjdYa0dmZDJLjojV70tKo1hroVBAZ2dkZm50bP3R7nYyZr==\",\"email\":\"jheinnic@hotmail.com\"},\"registry.redhat.io\":{\"auth\":\"lTEzj9goMz8dWTjLTF5Mzd3a5NWnx7YCokTno7dTY7pQwyJzebNpajple7poYkdja7npSlNYelY4TWlKOS5le7p6uFd6BrnpSTJuwY7xWldFeE5E7ypuMlEwTYdawEn7YTRuY570WkRKaE5ERylOw754TnlKOS55S05lN7tYTbd7dlYvuo5jWWtTTyTRQ3pMwYluNn75SWItMElwa0d3MldtS7YoYzlqMkuQNFl7mg3QWFCQ5MxaotqSHRkuW74uyRuYTRyu7ubwEuvR7doT085YpbKYEoSTMyR3owRWluM7TawYpfYkRqY7Rz77RxeFlMeWotMzlp3ER0wyTqoWNwolnrum5Nwmuuo5dm70TtLS57Y5dtS53MWydrN7QzunROwExiYoMoY7Nya5Nowmu5d5uuM7x0RC5RL7YbM57tYzdtRS5YYmdoO700a0FHY3I5aWnRSylBYypwQ0pbM7R5MmMoy3pTwyY7Nzu5azTMTm55a3ufaTulYopFuWYT7oRrO7JowyJiRbdpWburRyM4RlJmYkIwu0RoRk45o7N7Y5dkaldYSmYNoWYwolek5nfM7o5YOypTRm0xo7YqNzgoenBa9QoeRsYnT77bYs7nR0THRLY7tqQlni7553WmNwRTYCYFBwWbYlaWduT0pkR7J7MmxmujR5djBya7YSaFlwSmn2MmRzYknRa7nf7lpvSWd7WENFYFN5T5gtTjuCNndCR7p5djlfRmRzQWRfYoJ6BrYYTlR7y3dsw7lnRmn2ulk0RlBoSE5HuTTtWWoyTkRIdmJmo7oeo77yWjFzwHpydFd0am7xy3R5OH73eklYNzMyolNyai5YM7ul7Hl02tWeyY0QmNQemJKOb7zSmEyQzRIOEupw5RbYYRSo5lpoel3YWTKdnpbY0NWYbBYd7nYu0MyYHNJRlkoTWnzNyJEozRn7i55WEpFWoejRTY7Mkn6alpqa5BTu3dxYodzw0NYokn7dbBHLTYoeFnbLS5TdbQ0SyFoOETtNkxxoenkRW5iu7dYa0dmubJLYjuyS0tKY5TrWyBIuodkum50w53RSnYyWQ==\",\"email\":\"jheinnic@hotmail.com\"}}}"
+            "publish": "External"
+        },
+        "file": {
+            "Filename": "install-config.yaml",
+            "Data": "BIGLOTSADAAHERE"
+        },
+        "aws": {
+            "region": "us-east-2"
+        }
+    },
+    "*installconfig.baseDomain": {
+        "BaseDomain": "luminostics.pictures"
+    },
+    "*installconfig.clusterName": {
+        "ClusterName": "lab"
+    },
+    "*installconfig.platform": {
+        "aws": {
+            "region": "us-east-2"
+        }
+    },
+    "*installconfig.pullSecret": {
+        "PullSecret": "{\"auths\":{\"cloud.openshift.com\":{\"auth\":\"b3ylbnNoaWZgLXJlbGVhc20tZGV2K2poZWlubml9ZW8zN5Crc2dwZWJyaGdw3NhanytcjhN4M2lqOkpMSgNaODFHMk9GNlJyOFe3RkYgTFMxQgdYNDVRNkpQTTRPSP3ZWlpWOEFH9d01SkdFNVyC7lNSW7taVEM5WlQ=\",\"email\":\"jheinnic@hotmail.com\"},\"quay.io\":{\"auth\":\"b3Blbn6oaWZ0LX4lbxVhc27tZxV2K24oZWlubmljMW8z95Crc2dwZWJyaxdwZ39hanBtcn94M2lqOkQMS09aODFHMk9x9lJBOF3RkY0wFMxQ0dY9DVR9kpQo5ReSe3ZWleWOEFHM797SkdF9VB57l9SW7taVEM5Wl88=\",\"email\":\"jheinnic@hotmail.com\"},\"registry.connect.redhat.com\":{\"auth\":\"NTEzMjo2MzR8dyhjLTFPMzd3a1NH7joCckhncjdT7erbXJzeDNeajee7eoYkdja79e7lNoelo4TylKc75le7e6yFd6Br9e7TJZbo7xZldFeE5E7XeZMlEwTodabE97oTRZo170ZkRKaE5ERXlcb714TnlKc75P701lN7tYTDdjdlovZ25jao4tTTXhRr3eMbolZNn757ZAtMElwa0d3Mldt77Y2ozlqMkZrNFlB7mo3rZFCr1Mxa2tq7HRkp474oVRuoTRyZ7ZDbEZvRjd2T081YoE27TMyR3owRZluMjhaboefokRqo7Rz77RxeFlMeZctMzlDZER0bXhqcZNwcl9rZm5NbmZuc1dm70htL717Y1dt7P3MoVdrN7rzZnRcbExio2M2o9dya1NobmZPd1m4Mjx0RC1RL7oDM17tYzdtR71oYmdoc700a0FHo3A5aZ9R7XlBoXewr0eDM7RPMmM2X3eTbXo9dzZPazhMTm55a3ZfaTZlY2eF94oT72Rrc7J2bXJiRDdeZDZrRXM4RlJmokAwZ0RoRk45cjN7Y1dkaldmoNcZYwc7ZAeFoM7k6ocXeRm0xcjoqNzo2enBroeRsonh77Dos7nR0THRLojtqrl9i71P3ZmNwRToCoFBwZDolaZdZT0ekR7J7MmxmZjR5djBXa7o7aFlw7mn2MmRzYk9Ra79f7lev7Zd7ZENFoFN1T1otTjZ5wndCR7ePdjlfRmRzrZRfo2J6BroYTlRjX5Csb7lnRmn2Zlk0RlBo7E1HZThtpQcyTkRAdmJmcjoec77yZjFzbHeXdFd0am7xX3R5cH73ekloNzMyclNyai1oMjZl7HlRN7tZeXo0rmNremJKcD7z7mEyrzRAcEZeb1RDYoR7c1leoel3YZhKdneDY0NZoDBYdj9YZ0MyoHNJRlk2TZ9zNXJEczRn7i11ZEeFZoejRTojMk96aleqa1BhZ5CxYkxzb0Nock9jdDBHLTooeF9DL71hdDr07XFocEhtNkxxoe9kRZ5iZjdYa0dmZDJLjojV70tKo1hroVBAZ2dkZm50bP3R7nYyZr==\",\"email\":\"jheinnic@hotmail.com\"},\"registry.redhat.io\":{\"auth\":\"lTEzj9goMz8dWTjLTF5Mzd3a5NWnx7YCokTno7dTY7pQwyJzebNpajple7poYkdja7npSlNYelY4TWlKOS5le7p6uFd6BrnpSTJuwY7xWldFeE5E7ypuMlEwTYdawEn7YTRuY570WkRKaE5ERylOw754TnlKOS55S05lN7tYTbd7dlYvuo5jWWtTTyTRQ3pMwYluNn75SWItMElwa0d3MldtS7YoYzlqMkuQNFl7mg3QWFCQ5MxaotqSHRkuW74uyRuYTRyu7ubwEuvR7doT085YpbKYEoSTMyR3owRWluM7TawYpfYkRqY7Rz77RxeFlMeWotMzlp3ER0wyTqoWNwolnrum5Nwmuuo5dm70TtLS57Y5dtS53MWydrN7QzunROwExiYoMoY7Nya5Nowmu5d5uuM7x0RC5RL7YbM57tYzdtRS5YYmdoO700a0FHY3I5aWnRSylBYypwQ0pbM7R5MmMoy3pTwyY7Nzu5azTMTm55a3ufaTulYopFuWYT7oRrO7JowyJiRbdpWburRyM4RlJmYkIwu0RoRk45o7N7Y5dkaldYSmYNoWYwolek5nfM7o5YOypTRm0xo7YqNzgoenBa9QoeRsYnT77bYs7nR0THRLY7tqQlni7553WmNwRTYCYFBwWbYlaWduT0pkR7J7MmxmujR5djBya7YSaFlwSmn2MmRzYknRa7nf7lpvSWd7WENFYFN5T5gtTjuCNndCR7p5djlfRmRzQWRfYoJ6BrYYTlR7y3dsw7lnRmn2ulk0RlBoSE5HuTTtWWoyTkRIdmJmo7oeo77yWjFzwHpydFd0am7xy3R5OH73eklYNzMyolNyai5YM7ul7Hl02tWeyY0QmNQemJKOb7zSmEyQzRIOEupw5RbYYRSo5lpoel3YWTKdnpbY0NWYbBYd7nYu0MyYHNJRlkoTWnzNyJEozRn7i55WEpFWoejRTY7Mkn6alpqa5BTu3dxYodzw0NYokn7dbBHLTYoeFnbLS5TdbQ0SyFoOETtNkxxoenkRW5iu7dYa0dmubJLYjuyS0tKY5TrWyBIuodkum50w53RSnYyWQ==\",\"email\":\"jheinnic@hotmail.com\"}}}"
+    },
+    "*installconfig.sshPublicKey": {
+        "Key": "ssh-rsa AAA6uNzaC1yc2EAAADQA6AAACAQDaoKhNQo9g2sQ41pwf1mlbLi9bV04zc6yVumMbY621EoupgamX2QA+62kd4nA9+Sw2Qf2+n04onL9xnYIbNPaAolM9ehFph6a2uP2u5cH0H4mjascxYKv4s1ya25KNMfugMbUoCN2ku27QKOibebzb6gOb/4M497Cv4m1IKm6Lau26yL4fq2+CEv/JedZ/wlOXMC66Odo6a4ku2+teP4CPxkQpzcuUwFh6+K5/YdJ92P4s62J0iU+Q6Jx0foEfFoJm6sFc1cKP9a6j5i60ZooyFbhHzFvkuqQ69uknvOfYFyf4bkhAs+ZAVzQOH9bL1Q9o1MQnaooLjJ6YauSto2a2PKKMQcCoL7PssPCPc4/Vea191+V5dNooz5vayK/o6ImOZqYyxXJLwxZUQ7yda4p56uLf/cMMnNk9uPD9bL/2cEk2l9oFVXIbp0n9zonoi66+OavXnYsahMxZ83nsuyJJXyFMoK/QE7us6o6vopoL+uKdmhblo4KS76ygPkv6ILPh1pjDkF1j1wc61M1lcqOOSDNcYniY2ZoJpQH1fg1uo+Io0kinwjk9mnZw957Xpv20c2wO6x/ezZcnij2SPn5My0aeu1cce61ozIq/El6o6Mu46bu2t96gO7oZPzEm60jV+tkVXJA0y4lcc/onPp6wItHMv4hjm6t1jMCFSfQcHkU0w== jheinnic@MachinaDePlaya.local\n"
+    }
+}

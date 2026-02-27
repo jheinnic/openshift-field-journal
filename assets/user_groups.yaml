@@ -1,0 +1,23 @@
+kind: List
+apiVersion: v1
+
+kind: Group
+apiVersion: user.openshift.io/v1
+metadata:
+  name: cluster-admins
+users:
+  - jheinnic
+
+---
+
+kind: Group
+apiVersion: user.openshift.io/v1
+metadata:
+  name: cluster-readers
+users:
+  - dan
+  - brian
+  - bala
+  - raja
+  - andrew
+  - steven

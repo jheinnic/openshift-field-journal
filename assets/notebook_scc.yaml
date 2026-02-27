@@ -1,0 +1,56 @@
+kind: List
+apiVersion: v1
+
+kind: SecurityContextConstraints
+apiVersion: security.openshift.io/v1
+metadata:
+  name: elevated-notebook-privilege
+priority: 25
+allowPrivilegedContainer: false
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap`
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - secret
+  - projected
+  - gitRepo
+  - nfs
+  - iscsi
+  - portworx
+  - awsElasticBlockStore
+  - flexVolume
+
+---
+
+kind: SecurityContextConstraints
+apiVersion: security.openshift.io/v1
+metadata:
+  name: standard-notebook-privilege
+priority: 12
+allowPrivilegedContainer: false
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap`
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - secret
+  - projected
+  - gitRepo
+  - nfs
+  - iscsi
+  - portworx
+  - awsElasticBlockStore
+  - flexVolume

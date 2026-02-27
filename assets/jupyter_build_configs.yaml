@@ -1,0 +1,135 @@
+﻿kind: List
+apiVersion: v1
+
+kind: BuildConfig
+apiVersion: build.openshift.io/v1
+metadata:
+  name: s2i-jupyterhub
+  namespace: jupyterhub
+  labels:
+    build: s2i-jupyterhub
+spec:
+  nodeSelector: null
+  resources: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      from:
+        kind: ImageStreamTag
+        namespace: openshift
+        name: 'python:3.6'
+  postCommit: {}
+  source:
+    type: Git
+    git:
+      uri: 'git://github.com/jheinnic/jupyterhub-quickstart.git'
+      ref: jheinnic/feature-libraries
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChange:
+        from:
+          kind: ImageStreamTag
+          name: 'python:3.6'
+    - type: GitHub
+      github:
+        secretReference:
+          name: jupyterhub-quickstart-webhook
+  output:
+    to:
+      kind: ImageStreamTag
+      namespace: jupyterhub
+      name: 's2i-jupyterhub:latest'
+  successfulBuildsHistoryLimit: 5
+  failedBuildsHistoryLimit: 5
+  runPolicy: Serial
+
+---
+
+kind: BuildConfig
+apiVersion: build.openshift.io/v1
+metadata:
+  name: s2i-minimal-notebook-py36
+  namespace: jupyterhub
+  labels:
+    build: minimal-notebook
+spec:
+  nodeSelector: null
+  resources: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      from:
+        kind: ImageStreamTag
+        namespace: openshift
+        name: 'python:3.6'
+  postCommit: {}
+  source:
+    type: Git
+    git:
+      uri: 'git://github.com/jheinnic/jupyter-notebooks.git'
+      ref: jheinnic/feature-images-notebook
+    contextDir: minimal-notebook
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChange:
+        from:
+          kind: ImageStreamTag
+          name: 'python:3.6'
+    - type: GitHub
+      github:
+        secretReference:
+          name: jupyter-notebook-webhook
+  output:
+    to:
+      kind: ImageStreamTag
+      namespace: jupyterhub
+      name: 's2i-minimal-notebook-py36:latest'
+  successfulBuildsHistoryLimit: 5
+  failedBuildsHistoryLimit: 5
+  runPolicy: Serial
+
+---
+
+kind: BuildConfig
+apiVersion: build.openshift.io/v1
+metadata:
+  name: s2i-minimal-notebook-py38
+  namespace: jupyterhub
+  labels:
+    build: minimal-notebook
+spec:
+  strategy:
+    type: Docker
+    dockerStrategy:
+      from:
+        kind: ImageStreamTag
+        namespace: openshift
+        name: 'python:3.8'
+  postCommit: {}
+  source:
+    type: Git
+    git:
+      uri: 'git://github.com/jheinnic/jupyter-notebooks.git'
+      ref: jheinnic/feature-images-notebook
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChange:
+        from:
+          kind: ImageStreamTag
+          name: 'python:3.8'
+    - type: GitHub
+      github:
+        secretReference:
+          name: jupyter-notebook-webhook
+  runPolicy: Serial
+  output:
+    to:
+      kind: ImageStreamTag
+      namespace: jupyterhub
+      name: 's2i-minimal-notebook-py38:latest'
+  resources: {}
+  successfulBuildsHistoryLimit: 5
+  failedBuildsHistoryLimit: 5
